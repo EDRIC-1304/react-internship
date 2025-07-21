@@ -3,6 +3,10 @@
   text-align: center;
   max-width: 700px;
   margin: auto;
+  background-color: #fff;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  border-radius: 12px;
+  font-family: 'Segoe UI', sans-serif;
 }
 
 button {
@@ -14,33 +18,37 @@ button {
   cursor: pointer;
   font-size: 16px;
   margin-top: 10px;
+  transition: 0.3s;
 }
 
 button:hover {
   background-color: #182848;
 }
 
+button:disabled {
+  background-color: gray;
+  cursor: not-allowed;
+}
+
 .keys {
   margin-top: 20px;
   text-align: left;
-  background-color: #f1f1f1;
+  background-color: #f9f9f9;
   padding: 20px;
   border-radius: 10px;
+  border: 1px solid #ccc;
 }
 
-.input-group {
-  margin-top: 20px;
-}
-
-input {
+input, select {
   padding: 10px;
   font-size: 16px;
   width: 80%;
   max-width: 400px;
   margin: 10px 0;
+  border: 1px solid #ccc;
+  border-radius: 6px;
 }
 
-.error {
-  color: red;
-  margin-top: 15px;
+h1 {
+  color: #4b6cb7;
 }
