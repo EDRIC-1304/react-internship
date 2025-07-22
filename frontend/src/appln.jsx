@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import axios from 'axios';
+import QRCode from 'react-qr-code';
 
 const USDT_CONTRACT_ADDRESS = '0x787A697324dbA4AB965C58CD33c13ff5eeA6295F';
 const USDT_ABI = [
@@ -15,57 +16,54 @@ const USDC_ABI = [
 ];
 
 function Appln() {
+  const [view, setView] = useState('wallet');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [existingUsername, setExistingUsername] = useState('');
   const [wallet, setWallet] = useState(null);
-  const [showKeys, setShowKeys] = useState(false);
   const [revealPassword, setRevealPassword] = useState('');
   const [privateKey, setPrivateKey] = useState('');
-  const [existingUsername, setExistingUsername] = useState('');
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [bnbBalance, setBnbBalance] = useState("0");
   const [usdtBalance, setUsdtBalance] = useState("0");
   const [usdcBalance, setUsdcBalance] = useState("0");
-  const [selectedToken, setSelectedToken] = useState('BNB');
-  const [isSending, setIsSending] = useState(false);
+  const [selectedToken, setSelectedToken] = useState("BNB");
+  const [txHash, setTxHash] = useState('');
   const [verifyHash, setVerifyHash] = useState('');
   const [verifiedTx, setVerifiedTx] = useState(null);
-  const [txHash, setTxHash] = useState('');
   const [copied, setCopied] = useState(false);
+  const [popup, setPopup] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const provider = new ethers.JsonRpcProvider("https://data-seed-prebsc-1-s1.binance.org:8545");
 
+  const showPopup = (msg) => {
+    setPopup(msg);
+    setTimeout(() => setPopup(''), 3000);
+  };
+
   useEffect(() => {
     if (wallet?.address) updateBalances(wallet.address);
-  }, [wallet, selectedToken]);
+  }, [wallet]);
 
   const updateBalances = async (address) => {
     try {
-      const balanceWei = await provider.getBalance(address);
-      setBnbBalance(ethers.formatEther(balanceWei));
-
-      const usdtContract = new ethers.Contract(USDT_CONTRACT_ADDRESS, USDT_ABI, provider);
-      const usdtRaw = await usdtContract.balanceOf(address);
-      setUsdtBalance(ethers.formatUnits(usdtRaw, 18));
-
-      const usdcContract = new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, provider);
-      const usdcRaw = await usdcContract.balanceOf(address);
-      console.log("USDC raw balance:", usdcRaw.toString());
-      setUsdcBalance(ethers.formatUnits(usdcRaw, 18));
+      const bnb = await provider.getBalance(address);
+      const usdt = await new ethers.Contract(USDT_CONTRACT_ADDRESS, USDT_ABI, provider).balanceOf(address);
+      const usdc = await new ethers.Contract(USDC_CONTRACT_ADDRESS, USDC_ABI, provider).balanceOf(address);
+      setBnbBalance(ethers.formatEther(bnb));
+      setUsdtBalance(ethers.formatUnits(usdt, 18));
+      setUsdcBalance(ethers.formatUnits(usdc, 18));
     } catch (err) {
-      console.error("Balance fetch error:", err);
-      setBnbBalance("0");
-      setUsdtBalance("0");
-      setUsdcBalance("0");
+      setBnbBalance("0"); setUsdtBalance("0"); setUsdcBalance("0");
     }
   };
 
   const generateWallet = async () => {
-    if (!username || !password) return alert("Enter username & password");
+    if (!username || !password) return showPopup("Enter username and password");
     const newWallet = ethers.Wallet.createRandom();
     const encryptedJson = await newWallet.encrypt(password);
-
     const walletData = {
       userId: 'user001',
       username,
@@ -73,20 +71,17 @@ function Appln() {
       mnemonic: newWallet.mnemonic.phrase,
       encryptedJson
     };
-
     try {
       await axios.post('http://localhost:5000/api/wallets', walletData);
       setWallet({ ...newWallet, encryptedJson });
-      setShowKeys(false);
-      setPrivateKey('');
-      updateBalances(newWallet.address);
+      showPopup("✅ Wallet Generated");
     } catch {
-      alert("❌ Error saving wallet");
+      showPopup("❌ Error saving wallet");
     }
   };
 
   const findWalletByUsername = async () => {
-    if (!existingUsername) return alert("Enter a username");
+    if (!existingUsername) return showPopup("Enter username");
     try {
       const res = await axios.get(`http://localhost:5000/api/wallets/${existingUsername}`);
       const found = res.data;
@@ -96,20 +91,21 @@ function Appln() {
         encryptedJson: found.encryptedJson
       });
       setUsername(found.username);
-      setShowKeys(true);
       updateBalances(found.address);
+      showPopup("✅ Wallet Found");
     } catch {
-      alert("Wallet not found");
+      showPopup("❌ Wallet not found");
     }
   };
 
   const revealPrivateKey = async () => {
-    if (!wallet || !revealPassword) return alert("Enter password");
+    if (!wallet || !revealPassword) return showPopup("Enter password");
     try {
       const decrypted = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
       setPrivateKey(decrypted.privateKey);
+      showPopup("🔓 Private Key Revealed");
     } catch {
-      alert("Incorrect password");
+      showPopup("❌ Incorrect password");
     }
   };
 
@@ -122,8 +118,7 @@ function Appln() {
     });
     await tx.wait();
     setTxHash(tx.hash);
-    setCopied(false);
-    alert(`✅ BNB sent!\n\nTransaction Hash:\n${tx.hash}`);
+    showPopup("✅ BNB sent");
   };
 
   const sendUSDT = async (wallet) => {
@@ -131,8 +126,7 @@ function Appln() {
     const tx = await contract.transfer(recipientAddress, ethers.parseUnits(amount, 18));
     await tx.wait();
     setTxHash(tx.hash);
-    setCopied(false);
-    alert(`✅ USDT sent!\n\nTransaction Hash:\n${tx.hash}`);
+    showPopup("✅ USDT sent");
   };
 
   const sendUSDC = async (wallet) => {
@@ -140,101 +134,135 @@ function Appln() {
     const tx = await contract.transfer(recipientAddress, ethers.parseUnits(amount, 18));
     await tx.wait();
     setTxHash(tx.hash);
-    setCopied(false);
-    alert(`✅ USDC sent!\n\nTransaction Hash:\n${tx.hash}`);
+    showPopup("✅ USDC sent");
   };
 
   const sendToken = async () => {
-    if (!wallet || !recipientAddress || !amount || !revealPassword) return alert("Please fill all fields");
-    setIsSending(true);
+    if (!wallet || !recipientAddress || !amount || !revealPassword)
+      return showPopup("Fill all fields");
+
+    setLoading(true);
     try {
       const decrypted = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
       const connected = decrypted.connect(provider);
       if (selectedToken === "BNB") await sendBNB(connected);
       if (selectedToken === "USDT") await sendUSDT(connected);
       if (selectedToken === "USDC") await sendUSDC(connected);
-      updateBalances(await connected.getAddress());
-    } catch (err) {
-      alert("❌ Failed to send token");
+      updateBalances(connected.address);
+    } catch {
+      showPopup("❌ Send failed");
     }
-    setIsSending(false);
+    setLoading(false);
   };
 
   const verifyTransaction = async () => {
-    if (!verifyHash) return alert("Enter transaction hash");
+    if (!verifyHash) return showPopup("Enter transaction hash");
     try {
       const res = await axios.post("http://localhost:5000/api/verify-tx", { txHash: verifyHash });
       setVerifiedTx(res.data);
+      showPopup("✅ Transaction Verified");
     } catch {
-      alert("❌ Transaction not verified.");
-      setVerifiedTx(null);
+      showPopup("❌ Verification failed");
     }
   };
 
   return (
     <div style={styles.container}>
-      <h1 style={{ color: '#00ffcc' }}>METAMASK WALLET</h1>
+      <h1 style={{ color: '#00ffcc' }}>Metamask Wallet</h1>
+      <div style={{ marginBottom: 20 }}>
+        {['wallet', 'send', 'receive', 'verify'].map(tab => (
+          <button key={tab} onClick={() => setView(tab)} style={styles.button}>{tab.toUpperCase()}</button>
+        ))}
+      </div>
 
-      <input placeholder="Set new username" value={username} onChange={(e) => setUsername(e.target.value)} style={styles.input} />
-      <input type="password" placeholder="Set password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
-      <button onClick={generateWallet} style={styles.button}>Generate Wallet</button>
-      <button onClick={() => setShowKeys(true)} style={styles.button}>Show Keys</button>
-
-      <hr style={styles.divider} />
-      <input placeholder="Enter existing username" value={existingUsername} onChange={(e) => setExistingUsername(e.target.value)} style={styles.input} />
-      <button onClick={findWalletByUsername} style={styles.button}>Find Wallet</button>
-
-      {showKeys && wallet && (
-        <div style={styles.card}>
-          <p><strong>Username:</strong> {username}</p>
-          <p><strong>Mnemonic:</strong> {wallet.mnemonic.phrase}</p>
-          <p><strong>Address:</strong> {wallet.address}</p>
-          <p><strong>BNB:</strong> {bnbBalance} BNB</p>
-          <p><strong>USDT:</strong> {usdtBalance} USDT</p>
-          <p><strong>USDC:</strong> {usdcBalance} USDC</p>
-
-          <input type="password" placeholder="Password to reveal private key" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} style={styles.input} />
-          <button onClick={revealPrivateKey} style={styles.button}>Reveal Private Key</button>
-          {privateKey && <p><strong>Private Key:</strong> {privateKey}</p>}
-
-          <h3 style={{ color: '#00ccff' }}>Send Token</h3>
-          <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} style={styles.input}>
-            <option value="BNB">BNB</option>
-            <option value="USDT">USDT</option>
-            <option value="USDC">USDC</option>
-          </select>
-          <input placeholder="Recipient Address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} style={styles.input} />
-          <input placeholder={`Amount in ${selectedToken}`} value={amount} onChange={(e) => setAmount(e.target.value)} style={styles.input} />
-          <button onClick={sendToken} disabled={isSending} style={{ ...styles.button, backgroundColor: isSending ? 'gray' : '#00cc99' }}>
-            {isSending ? 'Sending...' : `Send ${selectedToken}`}
-          </button>
-
-          {txHash && (
-            <div>
-              <p><strong>Transaction Hash:</strong></p>
-              <code style={{ backgroundColor: '#2a2a2a', padding: '10px', borderRadius: '8px', display: 'inline-block' }}>{txHash}</code><br />
-              <button style={styles.button} onClick={() => { navigator.clipboard.writeText(txHash); setCopied(true); }}>
-                📋 {copied ? 'Copied!' : 'Copy Hash'}
-              </button>
+      {/* Wallet Tab */}
+      {view === 'wallet' && (
+        <div>
+          <input placeholder="New Username" value={username} onChange={e => setUsername(e.target.value)} style={styles.input} />
+          <input type="password" placeholder="Set Password" value={password} onChange={e => setPassword(e.target.value)} style={styles.input} />
+          <button onClick={generateWallet} style={styles.button}>Generate Wallet</button>
+          <hr style={styles.divider} />
+          <input placeholder="Find by Username" value={existingUsername} onChange={e => setExistingUsername(e.target.value)} style={styles.input} />
+          <button onClick={findWalletByUsername} style={styles.button}>Find Wallet</button>
+          {wallet && (
+            <div style={styles.card}>
+              <p><strong>Username:</strong> {username}</p>
+              <p><strong>Address:</strong> {wallet.address}</p>
+              <p><strong>Mnemonic:</strong> {wallet.mnemonic.phrase}</p>
+              <p><strong>BNB:</strong> {bnbBalance}</p>
+              <p><strong>USDT:</strong> {usdtBalance}</p>
+              <p><strong>USDC:</strong> {usdcBalance}</p>
+              <input type="password" placeholder="Password to reveal PK" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} style={styles.input} />
+              <button onClick={revealPrivateKey} style={styles.button}>Reveal Private Key</button>
+              {privateKey && <p><strong>Private Key:</strong> {privateKey}</p>}
             </div>
           )}
         </div>
       )}
 
-      <hr style={styles.divider} />
-
-      <h3 style={{ color: '#00ff99' }}>🔍 Verify Transaction</h3>
-      <input placeholder="Enter transaction hash" value={verifyHash} onChange={(e) => setVerifyHash(e.target.value)} style={styles.input} />
-      <button onClick={verifyTransaction} style={styles.button}>Verify</button>
-
-      {verifiedTx && (
+      {/* Send Tab */}
+      {view === 'send' && wallet && (
         <div style={styles.card}>
-          <p><strong>Status:</strong> ✅ Verified</p>
-          <p><strong>From:</strong> {verifiedTx.from}</p>
-          <p><strong>To:</strong> {verifiedTx.to}</p>
-          <p><strong>Amount:</strong> {verifiedTx.amount} {verifiedTx.token}</p>
-          <p><strong>Block ID:</strong> {verifiedTx.blockNumber}</p>
-          <p><strong>Gas Fee:</strong> {verifiedTx.gasFee} BNB</p>
+          <select value={selectedToken} onChange={e => setSelectedToken(e.target.value)} style={styles.input}>
+            <option value="BNB">BNB</option>
+            <option value="USDT">USDT</option>
+            <option value="USDC">USDC</option>
+          </select>
+          <input placeholder="Recipient Address" value={recipientAddress} onChange={e => setRecipientAddress(e.target.value)} style={styles.input} />
+          <input placeholder="Amount" value={amount} onChange={e => setAmount(e.target.value)} style={styles.input} />
+          <input type="password" placeholder="Password" value={revealPassword} onChange={e => setRevealPassword(e.target.value)} style={styles.input} />
+          <button onClick={sendToken} disabled={loading} style={styles.button}>{loading ? 'Sending...' : 'Send'}</button>
+         {txHash && (
+  <>
+       <p><strong>Tx Hash:</strong> {txHash}</p>
+      <a href={`https://testnet.bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#00ffcc' }}>
+      🔍 View on BscScan
+     </a><br />
+       <button style={styles.button} onClick={() => { navigator.clipboard.writeText(txHash); setCopied(true); }}>
+        {copied ? 'Copied!' : 'Copy Hash'}
+     </button>
+  </>
+)}
+
+        </div>
+      )}
+
+      {/* Receive Tab */}
+      {view === 'receive' && wallet && (
+        <div style={styles.card}>
+          <h3>Receive via QR</h3>
+          <QRCode value={wallet.address} size={180} bgColor="#1f1f1f" fgColor="#00ffcc" />
+          <p><strong>Wallet Address:</strong></p>
+          <code style={{ wordBreak: 'break-all' }}>{wallet.address}</code>
+          <br />
+          <button onClick={() => { navigator.clipboard.writeText(wallet.address); setCopied(true); }} style={styles.button}>
+            {copied ? 'Copied!' : 'Copy Address'}
+          </button>
+        </div>
+      )}
+
+      {/* Verify Tab */}
+      {view === 'verify' && (
+        <div style={styles.card}>
+          <input placeholder="Enter Tx Hash" value={verifyHash} onChange={(e) => setVerifyHash(e.target.value)} style={styles.input} />
+          <button onClick={verifyTransaction} style={styles.button}>Verify</button>
+          {verifiedTx && (
+            <>
+              <p><strong>Status:</strong> ✅</p>
+              <p><strong>From:</strong> {verifiedTx.from}</p>
+              <p><strong>To:</strong> {verifiedTx.to}</p>
+              <p><strong>Amount:</strong> {verifiedTx.amount} {verifiedTx.token}</p>
+              <p><strong>Block ID:</strong> {verifiedTx.blockNumber}</p>
+              <p><strong>Gas Fee:</strong> {verifiedTx.gasFee} BNB</p>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Popup Message */}
+      {popup && (
+        <div style={styles.popup}>
+          {popup}
         </div>
       )}
     </div>
@@ -280,6 +308,17 @@ const styles = {
   divider: {
     borderColor: '#333',
     margin: '40px 0'
+  },
+  popup: {
+    position: 'fixed',
+    top: '40%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    backgroundColor: '#222',
+    color: '#00ffcc',
+    padding: '20px',
+    borderRadius: '10px',
+    zIndex: 999
   }
 };
 
