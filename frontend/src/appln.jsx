@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import axios from 'axios';
 import QRCode from 'react-qr-code';
+import './appln.css'; // Import the component-specific stylesheet
 
 const USDT_CONTRACT_ADDRESS = '0x787A697324dbA4AB965C58CD33c13ff5eeA6295F';
 const USDC_CONTRACT_ADDRESS = '0x342e3aA1248AB77E319e3331C6fD3f1F2d4B36B1';
@@ -58,7 +59,8 @@ function Appln() {
     const usdcB = await usdcC.balanceOf(address);
     setUSDC(ethers.formatUnits(usdcB, 18));
   };
-
+  
+  // --- All your other functions (generateWallet, findWalletByUsername, etc.) remain the same ---
   const generateWallet = async () => {
     if (!username || !password) return showPopup("Set username and password");
     const newWallet = ethers.Wallet.createRandom();
@@ -173,69 +175,81 @@ function Appln() {
     }
   };
 
-  return (
-    <div style={styles.container}>
-      <h1 style={{ color: '#00ffcc' }}>React Wallet</h1>
 
-      {/* Wallet Creation Section */}
-      <div>
-        <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} style={styles.input} />
-        <input type="password" placeholder="New Password" value={password} onChange={(e) => setPassword(e.target.value)} style={styles.input} />
-        <button style={styles.button} onClick={generateWallet}>Generate Wallet</button>
-        <input placeholder="Existing Username" value={existingUsername} onChange={(e) => setExistingUsername(e.target.value)} style={styles.input} />
-        <button style={styles.button} onClick={findWalletByUsername}>Find Wallet</button>
+  return (
+    <div className="appln-container">
+      <h1 className="appln-header">React Wallet</h1>
+
+      {/* Wallet Creation/Finding Section */}
+      <div className="appln-card">
+        <h2 className="appln-card-header">Manage Your Wallet</h2>
+        <div className="input-group">
+          <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="appln-input" />
+          <input type="password" placeholder="New Password" value={password} onChange={(e) => setPassword(e.target.value)} className="appln-input" />
+          <button className="appln-button" onClick={generateWallet}>Generate Wallet</button>
+        </div>
+        <div className="input-group">
+          <input placeholder="Existing Username" value={existingUsername} onChange={(e) => setExistingUsername(e.target.value)} className="appln-input" />
+          <button className="appln-button" onClick={findWalletByUsername}>Find Wallet</button>
+        </div>
       </div>
 
       {/* Wallet Info */}
       {wallet && (
-        <div style={styles.card}>
-          <p><strong>Address:</strong> {wallet.address}</p>
-          <p><strong>BNB:</strong> {bnb} | <strong>USDT:</strong> {usdt} | <strong>USDC:</strong> {usdc}</p>
-          <p><strong>Mnemonic:</strong> {wallet.mnemonic?.phrase}</p>
-          <input type="password" placeholder="Password to reveal PK" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} style={styles.input} />
-          <button style={styles.button} onClick={revealPrivateKey}>Reveal PK</button>
-          {privateKey && <p><strong>Private Key:</strong> {privateKey}</p>}
-          <div style={{ marginTop: '15px' }}>
-            <button style={styles.button} onClick={() => setView('send')}>Send</button>
-            <button style={styles.button} onClick={() => setView('receive')}>Receive</button>
-            <button style={styles.button} onClick={() => { setView('ledger'); fetchLedger(); }}>Transaction Ledger</button>
+        <div className="appln-card">
+          <div className="wallet-info">
+            <p><strong>Address:</strong> {wallet.address}</p>
+            <p><strong>Balances:</strong> {bnb} BNB | {usdt} USDT | {usdc} USDC</p>
+            <p><strong>Mnemonic:</strong> {wallet.mnemonic?.phrase}</p>
+          </div>
+          <div className="input-group">
+            <input type="password" placeholder="Enter Password to Reveal Private Key" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} className="appln-input" />
+            <button className="appln-button" onClick={revealPrivateKey}>Reveal PK</button>
+          </div>
+          {privateKey && <p className="private-key"><strong>Private Key:</strong> {privateKey}</p>}
+          <div className="view-buttons">
+            <button className="appln-button" onClick={() => setView('send')}>Send</button>
+            <button className="appln-button" onClick={() => setView('receive')}>Receive</button>
+            <button className="appln-button" onClick={() => { setView('ledger'); fetchLedger(); }}>Ledger</button>
           </div>
         </div>
       )}
 
       {/* Send View */}
-      {view === 'send' && (
-        <div style={styles.card}>
-          <h3>Send Tokens</h3>
-          <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} style={styles.input}>
+      {view === 'send' && wallet && (
+        <div className="appln-card">
+          <h3 className="appln-card-header">Send Tokens</h3>
+          <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} className="appln-input">
             <option value="BNB">BNB</option>
             <option value="USDT">USDT</option>
             <option value="USDC">USDC</option>
           </select>
-          <input placeholder="To Address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} style={styles.input} />
-          <input placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} style={styles.input} />
-          <button onClick={sendToken} style={styles.button} disabled={disableSend || sending}>
-            {sending ? "Sending..." : "Send"}
+          <input placeholder="Recipient Address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} className="appln-input" />
+          <input placeholder="Amount to Send" value={amount} onChange={(e) => setAmount(e.target.value)} className="appln-input" />
+          <button onClick={sendToken} className="appln-button" disabled={disableSend || sending}>
+            {sending ? "Sending..." : "Send Transaction"}
           </button>
 
           {txHash && (
-            <>
+            <div className="tx-details">
               <p><strong>Hash:</strong> {txHash}</p>
-              <button onClick={() => { navigator.clipboard.writeText(txHash); showPopup("📋 Hash Copied") }} style={styles.button}>Copy Hash</button>
-              <a href={`https://testnet.bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#00ccff' }}>View on BscScan</a>
-            </>
+              <button onClick={() => { navigator.clipboard.writeText(txHash); showPopup("📋 Hash Copied") }} className="appln-button-small">Copy Hash</button>
+              <a href={`https://testnet.bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
+            </div>
           )}
+          
+          <hr className="separator" />
 
-          <input placeholder="Tx Hash to verify" value={verifyHash} onChange={(e) => setVerifyHash(e.target.value)} style={styles.input} />
-          <button style={styles.button} onClick={verifyTransaction} disabled={disableVerify}>Verify</button>
+          <h4 className="appln-card-header">Verify Transaction</h4>
+          <input placeholder="Enter Tx Hash to Verify" value={verifyHash} onChange={(e) => setVerifyHash(e.target.value)} className="appln-input" />
+          <button className="appln-button" onClick={verifyTransaction} disabled={disableVerify}>Verify</button>
 
           {verifiedTx && (
-            <div style={styles.card}>
-              <p><strong>Status:</strong> ✅</p>
+            <div className="verified-tx-card">
+              <p><strong>Status:</strong> ✅ Verified</p>
               <p><strong>From:</strong> {verifiedTx.from}</p>
               <p><strong>To:</strong> {verifiedTx.to}</p>
-              <p><strong>Amount:</strong> {verifiedTx.amount}</p>
-              <p><strong>Token:</strong> {verifiedTx.token}</p>
+              <p><strong>Amount:</strong> {verifiedTx.amount} {verifiedTx.token}</p>
               <p><strong>Block ID:</strong> {verifiedTx.blockNumber}</p>
               <p><strong>Gas Fee:</strong> {verifiedTx.gasFee} BNB</p>
             </div>
@@ -244,88 +258,45 @@ function Appln() {
       )}
 
       {/* Receive View */}
-      {view === 'receive' && (
-        <div style={styles.card}>
-          <h3>Receive</h3>
-          <QRCode value={wallet?.address || ''} size={160} bgColor="#1f1f1f" fgColor="#00ffcc" />
-          <p><strong>Wallet Address:</strong></p>
-          <code>{wallet.address}</code><br />
-          <button style={styles.button} onClick={() => { navigator.clipboard.writeText(wallet.address); showPopup("📋 Address Copied") }}>
+      {view === 'receive' && wallet && (
+        <div className="appln-card receive-card">
+          <h3 className="appln-card-header">Receive Funds</h3>
+          <div className="qr-code-bg">
+            <QRCode value={wallet.address} size={160} bgColor="#ffffff" fgColor="#000000" />
+          </div>
+          <p><strong>Your Wallet Address:</strong></p>
+          <code className="wallet-address-code">{wallet.address}</code>
+          <button className="appln-button" onClick={() => { navigator.clipboard.writeText(wallet.address); showPopup("📋 Address Copied") }}>
             Copy Address
           </button>
         </div>
       )}
 
       {/* Transaction Ledger */}
-      {view === 'ledger' && (
-        <div style={styles.card}>
-          <h3>Transaction Ledger</h3>
-          {ledger.length === 0 ? <p>No transactions</p> : ledger.map((tx, i) => (
-            <div key={i} style={{ border: '1px solid #333', padding: 10, marginBottom: 10 }}>
-              <p><strong>From:</strong> {tx.from}</p>
-              <p><strong>To:</strong> {tx.to}</p>
-              <p><strong>Amount:</strong> {tx.amount}</p>
-              <p><strong>Token:</strong> {tx.token}</p>
-              <p><strong>Gas Fee:</strong> {tx.gasFee}</p>
-              <p><strong>Block ID:</strong> {tx.blockNumber}</p>
-              <p><strong>Time:</strong> {tx.timestamp}</p>
-              <a href={`https://testnet.bscscan.com/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer" style={{ color: '#00ccff' }}>View on BscScan</a>
-            </div>
-          ))}
+      {view === 'ledger' && wallet && (
+        <div className="appln-card">
+          <h3 className="appln-card-header">Transaction Ledger</h3>
+          <div className="ledger-list">
+            {ledger.length === 0 ? <p>No transactions found for this address.</p> : ledger.map((tx, i) => (
+              <div key={i} className="ledger-item">
+                <p><strong>From:</strong> {tx.from}</p>
+                <p><strong>To:</strong> {tx.to}</p>
+                <p><strong>Amount:</strong> {tx.amount} {tx.token}</p>
+                <p><strong>Gas Fee:</strong> {tx.gasFee} BNB</p>
+                <p><strong>Time:</strong> {tx.timestamp}</p>
+                <a href={`https://testnet.bscscan.com/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Popup */}
       {popup && (
-        <div style={styles.popup}>{popup}</div>
+        <div className="appln-popup">{popup}</div>
       )}
     </div>
   );
 }
-
-const styles = {
-  container: {
-    backgroundColor: '#111',
-    color: 'white',
-    padding: '30px',
-    minHeight: '100vh',
-    textAlign: 'center'
-  },
-  input: {
-    padding: '10px',
-    margin: '8px',
-    fontSize: '16px',
-    backgroundColor: '#1f1f1f',
-    color: 'white',
-    border: '1px solid #333',
-    borderRadius: '5px'
-  },
-  button: {
-    padding: '10px 20px',
-    margin: '8px',
-    backgroundColor: '#00cc99',
-    color: 'white',
-    border: 'none',
-    borderRadius: '5px',
-    cursor: 'pointer'
-  },
-  card: {
-    backgroundColor: '#1a1a1a',
-    borderRadius: '10px',
-    padding: '20px',
-    marginTop: '20px'
-  },
-  popup: {
-    position: 'fixed',
-    top: '20px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    backgroundColor: '#333',
-    color: '#00ffcc',
-    padding: '10px 20px',
-    borderRadius: '8px',
-    zIndex: 999
-  }
-};
 
 export default Appln;
