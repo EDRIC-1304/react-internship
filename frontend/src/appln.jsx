@@ -211,8 +211,7 @@ function Appln() {
   return (
     <div className="wallet-manager-container">
       <div className="header">
-        <h1>React Wallet</h1>
-        <p>A professional interface for the BSC testnet.</p>
+        <h1>REACT WALLET</h1>
       </div>
 
       <div className="card-grid">
