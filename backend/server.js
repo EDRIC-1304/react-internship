@@ -122,7 +122,7 @@ app.post("/api/transactions/record", async (req, res) => {
       blockNumber: receipt.blockNumber,
       gasUsed,
       gasFee,
-      timestamp: new Date(block.timestamp * 1000).toLocaleString()
+      timestamp: new Date(block.timestamp * 1000).toISOString() 
     };
 
     // 6. Save it to the database

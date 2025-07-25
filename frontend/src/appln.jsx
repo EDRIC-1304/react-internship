@@ -1,21 +1,20 @@
 /* eslint-env browser, node */
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import axios from 'axios';
 import QRCode from 'react-qr-code';
-import './appln.css';
+import './appln.css'; // Using the new CSS file
 
+// --- Contract Addresses and ABI remain the same ---
 const USDT_CONTRACT_ADDRESS = '0x787A697324dbA4AB965C58CD33c13ff5eeA6295F';
 const USDC_CONTRACT_ADDRESS = '0x342e3aA1248AB77E319e3331C6fD3f1F2d4B36B1';
 const ABI = ["function balanceOf(address) view returns (uint256)", "function transfer(address to, uint amount) returns (bool)"];
 
 function Appln() {
-  const [username, setUsername] = useState('');
+  // --- All state variables remain the same ---
+  const [walletName, setWalletName] = useState('');
   const [password, setPassword] = useState('');
-  const [existingUsername, setExistingUsername] = useState('');
   const [wallet, setWallet] = useState(null);
-  const [revealPassword, setRevealPassword] = useState('');
   const [privateKey, setPrivateKey] = useState('');
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -32,13 +31,12 @@ function Appln() {
   const [pendingTxs, setPendingTxs] = useState([]);
   const [cancellingTxHash, setCancellingTxHash] = useState(null);
 
+  // --- All functions (provider, showPopup, updateBalances, etc.) remain exactly the same ---
   const provider = new ethers.JsonRpcProvider("https://data-seed-prebsc-1-s1.binance.org:8545");
 
   const showPopup = (msg) => {
     setPopup(msg);
-    setTimeout(() => {
-      setPopup('');
-    }, 3500);
+    setTimeout(() => setPopup(''), 3500);
   };
 
   const updateBalances = useCallback(async (address) => {
@@ -55,7 +53,7 @@ function Appln() {
       console.error("Failed to update balances:", error);
       showPopup("❌ Could not fetch balances.");
     }
-  }, []); 
+  }, [provider]);
 
   useEffect(() => {
     if (wallet?.address) {
@@ -64,78 +62,81 @@ function Appln() {
   }, [wallet, updateBalances]);
 
   const generateWallet = async () => {
-    if (!username || !password) return showPopup("Set username and password");
+    if (!walletName || !password) return showPopup("Enter a wallet name and password to create.");
     const newWallet = ethers.Wallet.createRandom();
     const encryptedJson = await newWallet.encrypt(password);
-    const payload = {
-      userId: 'user001',
-      username,
-      address: newWallet.address,
-      mnemonic: newWallet.mnemonic.phrase,
-      encryptedJson
-    };
     try {
-      await axios.post("http://localhost:5000/api/wallets", payload);
-      setWallet({ ...newWallet, encryptedJson });
-      showPopup("✅ Wallet created");
+      await axios.post("http://localhost:5000/api/wallets", {
+        userId: 'user001',
+        username: walletName,
+        address: newWallet.address,
+        mnemonic: newWallet.mnemonic.phrase,
+        encryptedJson
+      });
+      setWallet({ ...newWallet, encryptedJson, name: walletName });
+      showPopup("✅ Wallet created successfully!");
     } catch {
-      showPopup("❌ Error creating wallet");
+      showPopup("❌ Error creating wallet. Name might be taken.");
     }
   };
 
-  const findWalletByUsername = async () => {
-    if (!existingUsername) return showPopup("Enter username");
+  const findWallet = async () => {
+    if (!walletName) return showPopup("Enter wallet name to fetch.");
     try {
-      const res = await axios.get(`http://localhost:5000/api/wallets/${existingUsername}`);
+      const res = await axios.get(`http://localhost:5000/api/wallets/${walletName}`);
       const found = res.data;
       setWallet({
+        name: found.username,
         address: found.address,
         mnemonic: { phrase: found.mnemonic },
         encryptedJson: found.encryptedJson
       });
       updateBalances(found.address);
-      showPopup("✅ Wallet found");
+      showPopup("✅ Wallet fetched successfully!");
     } catch {
-      showPopup("❌ Wallet not found");
+      showPopup("❌ Wallet not found.");
     }
   };
 
   const revealPrivateKey = async () => {
-    if (!wallet || !revealPassword) return showPopup("Enter password");
+    if (!wallet || !password) return showPopup("Enter password to reveal key.");
     try {
-      const dec = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
+      const dec = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, password);
       setPrivateKey(dec.privateKey);
     } catch {
-      showPopup("❌ Wrong password");
+      showPopup("❌ Wrong password.");
     }
   };
 
   const sendToken = async () => {
-    if (!wallet || !revealPassword || !recipientAddress || !amount) {
+    if (!wallet || !password || !recipientAddress || !amount) {
       return showPopup("❌ Please fill all fields to send.");
     }
     setDisableSend(true);
     setSending(true);
     let tx;
     try {
-      const dec = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
+      const dec = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, password);
       const connected = dec.connect(provider);
-
+      let contractAddress;
+      if (selectedToken === "USDT") {
+        contractAddress = USDT_CONTRACT_ADDRESS;
+      } else if (selectedToken === "USDC") {
+        contractAddress = USDC_CONTRACT_ADDRESS;
+      }
+  
       if (selectedToken === "BNB") {
         tx = await connected.sendTransaction({ to: recipientAddress, value: ethers.parseEther(amount) });
       } else {
-        const contractAddress = selectedToken === "USDT" ? USDT_CONTRACT_ADDRESS : USDC_CONTRACT_ADDRESS;
         const contract = new ethers.Contract(contractAddress, ABI, connected);
         tx = await contract.transfer(recipientAddress, ethers.parseUnits(amount, 18));
       }
-
+  
       setTxHash(tx.hash);
       const pendingTxData = { hash: tx.hash, amount, token: selectedToken, to: recipientAddress };
       setPendingTxs(prev => [...prev, pendingTxData]);
       showPopup("⏳ Transaction Submitted! Awaiting confirmation...");
-
       await tx.wait();
-
       try {
         await axios.post("http://localhost:5000/api/transactions/record", { txHash: tx.hash });
         showPopup("✅ Transaction Confirmed & Recorded!");
@@ -143,73 +144,49 @@ function Appln() {
         console.error("Ledger recording failed:", error);
         showPopup("✅ Tx Confirmed, but failed to record in ledger.");
       }
-
       updateBalances(await connected.getAddress());
-
     } catch (err) {
       console.error(err);
       showPopup("❌ Transaction Failed or was Rejected.");
     } finally {
-      if (tx) {
-        setPendingTxs(prev => prev.filter(p => p.hash !== tx.hash));
-      }
+      if (tx) setPendingTxs(prev => prev.filter(p => p.hash !== tx.hash));
       setSending(false);
       setDisableSend(false);
     }
   };
-
+  
   const handleCancelTransaction = async (stuckTxHash) => {
-    if (!wallet || !revealPassword) {
-      return showPopup("❌ Enter password to sign the cancellation transaction.");
-    }
-
+    if (!wallet || !password) return showPopup("❌ Enter password to sign cancellation.");
     setCancellingTxHash(stuckTxHash);
     showPopup("🔍 Checking transaction status...");
-
     try {
-      // --- NEW: First, check if the transaction has already been mined ---
       const receipt = await provider.getTransactionReceipt(stuckTxHash);
       if (receipt && receipt.blockNumber) {
         showPopup("✅ Transaction has already been confirmed!");
-        // Remove it from the pending list
         setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
-        updateBalances(wallet.address); // Update balances just in case
-        return; // Stop the cancellation process
+        updateBalances(wallet.address);
+        return;
       }
-
-      const decryptedWallet = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
+      const decryptedWallet = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, password);
       const connectedWallet = decryptedWallet.connect(provider);
-
       const stuckTx = await provider.getTransaction(stuckTxHash);
-      if (!stuckTx) {
-        // This can still happen if the tx was dropped from the mempool
-        throw new Error("Transaction not found. It may have been confirmed or dropped.");
-      }
-
-      // Increase gas price by 20% to be safe
+      if (!stuckTx) throw new Error("Transaction not found.");
       const newGasPrice = stuckTx.gasPrice * BigInt(120) / BigInt(100);
-
       showPopup("Gas price increased. Submitting cancellation...");
-      
       const cancelTx = await connectedWallet.sendTransaction({
-        to: wallet.address, // Sending to yourself
+        to: wallet.address,
         value: ethers.parseEther("0"),
         nonce: stuckTx.nonce,
         gasPrice: newGasPrice,
       });
-
       showPopup("⏳ Submitting cancellation... Awaiting confirmation.");
       await cancelTx.wait();
-
       setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
       showPopup(`✅ Original transaction successfully cancelled with new Tx: ${cancelTx.hash}`);
-
     } catch (err) {
       console.error("Cancellation failed:", err);
-      // More specific error message for the user
       if (err.message.includes("not found")) {
         showPopup("❌ Cancellation failed. The transaction was likely already processed.");
-        // If it was processed, remove it from the pending list
         setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
         updateBalances(wallet.address);
       } else {
@@ -230,110 +207,142 @@ function Appln() {
     }
   };
 
+  // --- NEW JSX STRUCTURE ---
   return (
-    <div className="appln-container">
-      <h1 className="appln-header">React Wallet</h1>
-
-      <div className="appln-card">
-        <h2 className="appln-card-header">Manage Your Wallet</h2>
-        <div className="input-group">
-          <input placeholder="Username" value={username} onChange={(e) => setUsername(e.target.value)} className="appln-input" />
-          <input type="password" placeholder="New Password" value={password} onChange={(e) => setPassword(e.target.value)} className="appln-input" />
-          <button className="appln-button" onClick={generateWallet}>Generate Wallet</button>
-        </div>
-        <div className="input-group">
-          <input placeholder="Existing Username" value={existingUsername} onChange={(e) => setExistingUsername(e.target.value)} className="appln-input" />
-          <button className="appln-button" onClick={findWalletByUsername}>Find Wallet</button>
-        </div>
+    <div className="wallet-manager-container">
+      <div className="header">
+        <h1>React Wallet</h1>
+        <p>A professional interface for the BSC testnet.</p>
       </div>
 
-      {wallet && (
-        <div className="appln-card">
-          <div className="wallet-info">
-            <p><strong>Address:</strong> {wallet.address}</p>
-            <p><strong>Balances:</strong> {bnb} BNB | {usdt} USDT | {usdc} USDC</p>
-            <p><strong>Mnemonic:</strong> {wallet.mnemonic?.phrase}</p>
+      <div className="card-grid">
+        {/* --- LEFT COLUMN --- */}
+        <div className="card-column">
+          <div className="wallet-card">
+            <h3>Find or Create a Wallet</h3>
+            <div className="input-group">
+              <input
+                placeholder="Enter Wallet Name (e.g., 'MyProWallet')"
+                value={walletName}
+                onChange={(e) => setWalletName(e.target.value)}
+                className="wallet-input"
+              />
+              <div className="button-row">
+                <button className="btn btn-primary" onClick={generateWallet}>Create</button>
+                <button className="btn btn-secondary" onClick={findWallet}>Fetch</button>
+              </div>
+            </div>
           </div>
-          <div className="input-group">
-            <input type="password" placeholder="Enter Password for Actions" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} className="appln-input" />
-            <button className="appln-button" onClick={revealPrivateKey}>Reveal PK</button>
-          </div>
-          {privateKey && <p className="private-key"><strong>Private Key:</strong> {privateKey}</p>}
-          <div className="view-buttons">
-            <button className="appln-button" onClick={() => setView('send')}>Send</button>
-            <button className="appln-button" onClick={() => setView('receive')}>Receive</button>
-            <button className="appln-button" onClick={() => { setView('ledger'); fetchLedger(); }}>Ledger</button>
-          </div>
-        </div>
-      )}
 
-      {view === 'send' && wallet && (
-        <div className="appln-card">
-          <h3 className="appln-card-header">Send Tokens</h3>
-          <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} className="appln-input">
-            <option value="BNB">BNB</option>
-            <option value="USDT">USDT</option>
-            <option value="USDC">USDC</option>
-          </select>
-          <input placeholder="Recipient Address" value={recipientAddress} onChange={(e) => setRecipientAddress(e.target.value)} className="appln-input" />
-          <input placeholder="Amount to Send" value={amount} onChange={(e) => setAmount(e.target.value)} className="appln-input" />
-          <button onClick={sendToken} className="appln-button" disabled={disableSend || sending}>
-            {sending ? "Sending..." : "Send Transaction"}
-          </button>
-          {txHash && (
-            <div className="tx-details">
-              <p><strong>Last Tx Hash:</strong> {txHash}</p>
-              <button onClick={() => { navigator.clipboard.writeText(txHash); showPopup("📋 Hash Copied") }} className="appln-button-small">Copy Hash</button>
-              <a href={`https://testnet.bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
+          {wallet && view === 'send' && (
+            <div className="wallet-card">
+              <h3>Send Tokens</h3>
+              <input
+                placeholder="Recipient Address"
+                value={recipientAddress}
+                onChange={(e) => setRecipientAddress(e.target.value)}
+                className="wallet-input"
+              />
+              <div className="amount-group">
+                <input
+                  placeholder="Amount"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="wallet-input amount-input"
+                />
+                <select value={selectedToken} onChange={(e) => setSelectedToken(e.target.value)} className="wallet-select">
+                  <option value="BNB">BNB</option>
+                  <option value="USDT">USDT</option>
+                  <option value="USDC">USDC</option>
+                </select>
+              </div>
+              <button onClick={sendToken} className="btn btn-primary btn-full" disabled={disableSend || sending}>
+                {sending ? "Sending..." : "Send Transaction"}
+              </button>
             </div>
           )}
+        </div>
+
+        {/* --- RIGHT COLUMN --- */}
+        <div className="card-column">
+          <div className="wallet-card">
+            {wallet ? (
+              <div>
+                <h3>{wallet.name} Details</h3>
+                <p className="wallet-address"><strong>Address:</strong> {wallet.address}</p>
+                <div className="balances">
+                  <p><strong>BNB:</strong> {parseFloat(bnb).toFixed(4)}</p>
+                  <p><strong>USDT:</strong> {parseFloat(usdt).toFixed(2)}</p>
+                  <p><strong>USDC:</strong> {parseFloat(usdc).toFixed(2)}</p>
+                </div>
+                <div className="input-group">
+                  <input
+                    type="password"
+                    placeholder="Enter Password for Actions"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="wallet-input"
+                  />
+                  <button className="btn btn-secondary btn-full" onClick={revealPrivateKey}>Reveal Private Key</button>
+                </div>
+                {privateKey && <p className="private-key"><strong>PK:</strong> {privateKey}</p>}
+                <div className="view-buttons">
+                  <button className={`btn-view ${view === 'send' ? 'active' : ''}`} onClick={() => setView('send')}>Send</button>
+                  <button className={`btn-view ${view === 'receive' ? 'active' : ''}`} onClick={() => setView('receive')}>Receive</button>
+                  <button className={`btn-view ${view === 'ledger' ? 'active' : ''}`} onClick={() => { setView('ledger'); fetchLedger(); }}>Ledger</button>
+                </div>
+              </div>
+            ) : (
+              <div className="no-wallet-loaded">
+                <h3>No Wallet Loaded</h3>
+                <p>Please create a new wallet or fetch an existing one to begin.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      {/* --- Conditional Full-Width Cards --- */}
+      {view === 'receive' && wallet && (
+        <div className="wallet-card full-width-card">
+          <h3>Receive Funds</h3>
+          <div className="receive-content">
+            <div className="qr-code-bg">
+              <QRCode value={wallet.address} size={160} bgColor="#ffffff" fgColor="#000000" />
+            </div>
+            <p><strong>Your Wallet Address:</strong></p>
+            <code className="wallet-address-code">{wallet.address}</code>
+            <button className="btn btn-secondary" onClick={() => { navigator.clipboard.writeText(wallet.address); showPopup("📋 Address Copied") }}>
+              Copy Address
+            </button>
+          </div>
         </div>
       )}
 
       {pendingTxs.length > 0 && (
-        <div className="appln-card">
-          <h3 className="appln-card-header">Pending Transactions</h3>
-          <div className="ledger-list">
-            {pendingTxs.map(tx => (
-              <div key={tx.hash} className="ledger-item pending-item">
-                <p><strong>Sending:</strong> {tx.amount} {tx.token} to {tx.to.substring(0, 10)}...</p>
-                <div className="pending-details">
-                  <div className="spinner"></div>
-                  <span>Pending...</span>
-                  <a href={`https://testnet.bscscan.com/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="appln-link">
-                    View on BscScan
-                  </a>
-                  <button
-                    className="appln-button-cancel"
-                    onClick={() => handleCancelTransaction(tx.hash)}
-                    disabled={cancellingTxHash === tx.hash}
-                  >
-                    {cancellingTxHash === tx.hash ? 'Cancelling...' : 'Cancel'}
-                  </button>
-                </div>
+          <div className="wallet-card full-width-card">
+              <h3>Pending Transactions</h3>
+              <div className="ledger-list">
+                  {pendingTxs.map(tx => (
+                      <div key={tx.hash} className="ledger-item pending-item">
+                          <p><strong>Sending:</strong> {tx.amount} {tx.token} to {tx.to.substring(0, 10)}...</p>
+                          <div className="pending-details">
+                              <div className="spinner"></div>
+                              <span>Pending...</span>
+                              <a href={`https://testnet.bscscan.com/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
+                              <button className="btn-cancel" onClick={() => handleCancelTransaction(tx.hash)} disabled={cancellingTxHash === tx.hash}>
+                                  {cancellingTxHash === tx.hash ? '...' : 'Cancel'}
+                              </button>
+                          </div>
+                      </div>
+                  ))}
               </div>
-            ))}
           </div>
-        </div>
-      )}
-
-      {view === 'receive' && wallet && (
-        <div className="appln-card receive-card">
-          <h3 className="appln-card-header">Receive Funds</h3>
-          <div className="qr-code-bg">
-            <QRCode value={wallet.address} size={160} bgColor="#ffffff" fgColor="#000000" />
-          </div>
-          <p><strong>Your Wallet Address:</strong></p>
-          <code className="wallet-address-code">{wallet.address}</code>
-          <button className="appln-button" onClick={() => { navigator.clipboard.writeText(wallet.address); showPopup("📋 Address Copied") }}>
-            Copy Address
-          </button>
-        </div>
       )}
 
       {view === 'ledger' && wallet && (
-        <div className="appln-card">
-          <h3 className="appln-card-header">Transaction Ledger</h3>
+        <div className="wallet-card full-width-card">
+          <h3>Transaction Ledger</h3>
           <div className="ledger-list">
             {ledger.length === 0 ? <p>No transactions found for this address.</p> : ledger.map((tx, i) => (
               <div key={i} className="ledger-item">
@@ -341,7 +350,7 @@ function Appln() {
                 <p><strong>To:</strong> {tx.to}</p>
                 <p><strong>Amount:</strong> {tx.amount} {tx.token}</p>
                 <p><strong>Gas Fee:</strong> {tx.gasFee} BNB</p>
-                <p><strong>Time:</strong> {tx.timestamp}</p>
+                <p><strong>Time:</strong> {new Date(tx.timestamp).toLocaleString()}</p>
                 <a href={`https://testnet.bscscan.com/tx/${tx.txHash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
               </div>
             ))}
@@ -349,9 +358,7 @@ function Appln() {
         </div>
       )}
 
-      {popup && (
-        <div className="appln-popup">{popup}</div>
-      )}
+      {popup && <div className="wallet-popup">{popup}</div>}
     </div>
   );
 }

@@ -1,156 +1,201 @@
-/* appln.css */
+/* appln.css - New Design */
 
-.appln-container {
+/* --- Main Layout & Header --- */
+.wallet-manager-container {
   padding: 20px;
-  color: #e0e0e0;
+  min-height: 100vh;
 }
 
-.appln-header {
-  color: #00ffcc;
-  margin-bottom: 2rem;
-  font-weight: 500;
+.header {
   text-align: center;
+  margin-bottom: 40px;
 }
 
-.appln-card {
-  background-color: #1e1e1e;
-  border-radius: 12px;
+.header h1 {
+  font-size: 2.5rem;
+  font-weight: 600;
+  color: #FFFFFF;
+  margin: 0;
+}
+
+.header p {
+  font-size: 1.1rem;
+  color: #a9a9b3;
+}
+
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 25px;
+}
+
+.card-column {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+/* --- Card Styling --- */
+.wallet-card {
+  background: rgba(30, 30, 46, 0.6);
+  border-radius: 16px;
   padding: 25px;
-  margin-top: 25px;
-  border: 1px solid #2d2d2d;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
 
-.appln-card-header {
+.wallet-card h3 {
   margin-top: 0;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid #333;
-  padding-bottom: 10px;
-  font-weight: 400;
-  color: #00ffcc;
-}
-
-.appln-input,
-.appln-select {
-  padding: 12px;
-  margin: 8px 0;
-  font-size: 16px;
-  background-color: #2c2c2c;
-  color: white;
-  border: 1px solid #444;
-  border-radius: 6px;
-  width: 100%;
-  box-sizing: border-box; /* Important for consistent sizing */
-}
-
-.input-group {
-  margin-bottom: 1rem;
-}
-
-.appln-button {
-  width: 100%;
-  padding: 12px 24px;
-  margin: 10px 0;
-  background: linear-gradient(90deg, #00cc99, #00b386);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
+  margin-bottom: 20px;
   font-weight: 500;
-  transition: all 0.3s ease;
-  text-transform: uppercase;
+  color: #FFFFFF;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
 }
 
-.appln-button:hover {
-  box-shadow: 0 0 15px rgba(0, 255, 204, 0.4);
+.no-wallet-loaded {
+  text-align: center;
+  padding: 40px 10px;
+  color: #a9a9b3;
+}
+
+/* --- Inputs & Selects --- */
+.input-group, .amount-group {
+  margin-bottom: 15px;
+}
+
+.wallet-input, .wallet-select {
+  width: 100%;
+  padding: 14px;
+  font-size: 1rem;
+  background-color: rgba(0, 0, 0, 0.2);
+  color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  box-sizing: border-box;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.wallet-input:focus, .wallet-select:focus {
+  outline: none;
+  border-color: #00e0b8;
+  box-shadow: 0 0 10px rgba(0, 224, 184, 0.3);
+}
+
+.amount-group {
+  display: flex;
+  gap: 10px;
+}
+.amount-input { flex-grow: 1; }
+
+/* --- Buttons --- */
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.btn {
+  padding: 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  flex-grow: 1;
+}
+
+.btn-primary {
+  background: linear-gradient(90deg, #00e0b8, #00a88a);
+  color: white;
+}
+
+.btn-primary:hover {
+  box-shadow: 0 0 20px rgba(0, 224, 184, 0.4);
   transform: translateY(-2px);
 }
 
-.appln-button:disabled {
-  background: #555;
-  cursor: not-allowed;
-  transform: translateY(0);
-  box-shadow: none;
+.btn-secondary {
+  background-color: transparent;
+  color: #a9a9b3;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+.btn-secondary:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.btn:disabled {
+  background: #555;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.btn-full { width: 100%; }
+
+/* --- View Toggles --- */
 .view-buttons {
   display: flex;
   gap: 10px;
   margin-top: 20px;
-}
-
-.tx-details, .verified-tx-card, .ledger-item {
-  margin-top: 20px;
-  padding: 15px;
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 5px;
   border-radius: 8px;
-  background-color: #2a2a2a;
-  border: 1px solid #383838;
 }
 
-.tx-details p, .verified-tx-card p, .ledger-item p {
-  margin: 8px 0;
-  word-wrap: break-word;
-}
-
-.private-key {
-  color: #ff4d4d;
-  background-color: #2a2a2a;
-  padding: 10px;
-  border-radius: 5px;
-  word-wrap: break-word;
-}
-
-.appln-link {
-  color: #00ccff;
-  text-decoration: none;
-  font-weight: 500;
-}
-
-.appln-link:hover {
-  text-decoration: underline;
-}
-
-.separator {
+.btn-view {
+  flex-grow: 1;
+  background: transparent;
   border: none;
-  border-top: 1px solid #333;
-  margin: 2rem 0;
+  color: #a9a9b3;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-.receive-card {
-  text-align: center;
+.btn-view.active {
+  background: #00e0b8;
+  color: #1a1a2e;
+  font-weight: 600;
 }
 
-.qr-code-bg {
-  background: white;
-  padding: 15px;
-  border-radius: 8px;
-  display: inline-block;
-  margin: 1rem 0;
-}
+/* --- Wallet Details & Ledger --- */
+.wallet-address { word-wrap: break-word; color: #a9a9b3; font-size: 0.9rem;}
+.balances { display: flex; justify-content: space-between; gap: 10px; background-color: rgba(0,0,0,0.1); padding: 10px; border-radius: 8px; margin: 15px 0; }
+.balances p { margin: 0; font-weight: 500;}
+.private-key { color: #ff6b6b; background-color: rgba(255, 107, 107, 0.1); padding: 10px; border-radius: 5px; word-wrap: break-word; font-size: 0.9rem;}
+.appln-link { color: #00e0b8; text-decoration: none; font-weight: 500; }
+.appln-link:hover { text-decoration: underline; }
 
-.wallet-address-code {
-  display: block;
-  background-color: #2c2c2c;
-  padding: 10px 15px;
-  border-radius: 5px;
-  font-family: 'Courier New', Courier, monospace;
-  word-wrap: break-word;
-  margin: 1rem 0;
-}
+/* --- Full Width & Conditional Cards --- */
+.full-width-card { margin-top: 25px; }
+.receive-content { text-align: center; }
+.qr-code-bg { background: white; padding: 15px; border-radius: 8px; display: inline-block; margin: 1rem 0; }
+.wallet-address-code { display: block; background-color: rgba(0,0,0,0.2); padding: 10px 15px; border-radius: 5px; font-family: 'Courier New', Courier, monospace; word-wrap: break-word; margin: 1rem 0; }
+.ledger-list { max-height: 400px; overflow-y: auto; padding-right: 10px; }
+.ledger-item { padding: 15px; border-radius: 8px; background-color: rgba(0, 0, 0, 0.1); margin-bottom: 10px; }
+.ledger-item p { margin: 5px 0; word-wrap: break-word; }
 
-.ledger-list {
-  max-height: 400px;
-  overflow-y: auto;
-}
+/* --- Pending & Cancel --- */
+.pending-item { border-left: 4px solid #f59e0b; }
+.pending-details { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.spinner { border: 3px solid rgba(255, 255, 255, 0.2); border-left-color: #00e0b8; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.btn-cancel { background-color: #ff6b6b; color: white; border: none; padding: 4px 10px; font-size: 0.8rem; font-weight: 500; border-radius: 4px; cursor: pointer; transition: background-color 0.2s; margin-left: auto; }
+.btn-cancel:hover { background-color: #e53e3e; }
+.btn-cancel:disabled { background-color: #a0aec0; cursor: not-allowed; }
 
-.appln-popup {
+/* --- Popup --- */
+.wallet-popup {
   position: fixed;
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: #1e1e1e;
+  background-color: #1e1e2e;
   color: #00ffcc;
   padding: 15px 25px;
   border-radius: 8px;
@@ -158,56 +203,4 @@
   border: 1px solid #00ffcc;
   box-shadow: 0 4px 15px rgba(0, 255, 204, 0.2);
   font-size: 16px;
-}
-
-/* In appln.css */
-
-.pending-item {
-  background-color: #fef3c7; /* A light yellow */
-  border-left: 4px solid #f59e0b; /* Amber color */
-  opacity: 0.9;
-}
-
-.pending-details {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.spinner {
-  border: 3px solid rgba(0, 0, 0, 0.1);
-  border-left-color: #09f;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-/* --- Styles for Cancel Feature --- */
-
-.appln-button-cancel {
-  background-color: #f56565; /* A red color for danger/cancel actions */
-  color: white;
-  border: none;
-  padding: 4px 8px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.2s ease-in-out;
-  margin-left: auto; /* This pushes the button to the far right of the flex container */
-}
-
-.appln-button-cancel:hover {
-  background-color: #e53e3e; /* A darker red on hover */
-}
-
-.appln-button-cancel:disabled {
-  background-color: #a0aec0; /* Use the same disabled color as other buttons */
-  cursor: not-allowed;
-  opacity: 0.7;
 }
