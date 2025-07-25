@@ -7,6 +7,7 @@ const { ethers } = require('ethers');
 // Add these
 const USDT_CONTRACT_ADDRESS = '0x787A697324dbA4AB965C58CD33c13ff5eeA6295F';
 const USDC_CONTRACT_ADDRESS = '0x342e3aA1248AB77E319e3331C6fD3f1F2d4B36B1';
+const ABI = ["function transfer(address to, uint amount) returns (bool)"];
 
 // Set up provider
 const provider = new ethers.JsonRpcProvider("https://data-seed-prebsc-1-s1.binance.org:8545");
@@ -21,7 +22,7 @@ mongoose.connect('mongodb+srv://edric:wined@cluster0.49d4fas.mongodb.net/metamas
   .then(() => console.log("MongoDB Connected"))
   .catch(err => console.log("MongoDB Error:", err));
 
-// Wallet Schema
+// Wallet Schema (no change)
 const walletSchema = new mongoose.Schema({
   userId: String,
   username: String,
@@ -31,20 +32,22 @@ const walletSchema = new mongoose.Schema({
 });
 const Wallet = mongoose.model('Wallet', walletSchema);
 
-// Transaction Schema
+// Transaction Schema (added 'status' and made txHash unique)
 const transactionSchema = new mongoose.Schema({
-  txHash: String,
+  txHash: { type: String, required: true, unique: true, lowercase: true },
   from: String,
   to: String,
   amount: String,
   token: String,
+  status: String,
   blockNumber: Number,
+  gasUsed: String,
   gasFee: String,
   timestamp: String
 });
 const Transaction = mongoose.model('Transaction', transactionSchema);
 
-// Endpoint to create wallet
+// Endpoint to create wallet (no change)
 app.post('/api/wallets', async (req, res) => {
   try {
     const { userId, username, address, mnemonic, encryptedJson } = req.body;
@@ -56,7 +59,7 @@ app.post('/api/wallets', async (req, res) => {
   }
 });
 
-// Endpoint to find wallet
+// Endpoint to find wallet (no change)
 app.get('/api/wallets/:username', async (req, res) => {
   try {
     const found = await Wallet.findOne({ username: req.params.username });
@@ -67,59 +70,65 @@ app.get('/api/wallets/:username', async (req, res) => {
   }
 });
 
-// Verify transaction
-app.post("/api/verify-tx", async (req, res) => {
+// NEW/REPURPOSED Endpoint to automatically record a transaction
+app.post("/api/transactions/record", async (req, res) => {
   const { txHash } = req.body;
 
   try {
-    // Check if the hash already exists in the DB
+    // 1. Check if the transaction is already in the database to prevent duplicates
     const existing = await Transaction.findOne({ txHash: txHash.toLowerCase() });
-
     if (existing) {
-      return res.json(existing); // Already verified
+      return res.json(existing); // If already exists, just return it.
     }
 
+    // 2. Fetch transaction details from the blockchain
     const tx = await provider.getTransaction(txHash);
     const receipt = await provider.getTransactionReceipt(txHash);
 
-    if (!tx || !receipt || !receipt.status) {
-      return res.status(400).json({ error: "Transaction not found or failed" });
+    // 3. Ensure transaction was successful
+    if (!tx || !receipt || receipt.status !== 1) { // status: 1 is success
+      return res.status(400).json({ error: "Transaction not found or it failed" });
     }
 
     const block = await provider.getBlock(receipt.blockNumber);
-    const gasUsed = receipt.gasUsed;
+    const gasUsed = receipt.gasUsed.toString();
     const gasPrice = tx.gasPrice;
-    const gasFee = ethers.formatEther(gasUsed * gasPrice);
+    const gasFee = ethers.formatEther(BigInt(gasUsed) * gasPrice);
 
     let token = "BNB";
     let amount = ethers.formatEther(tx.value);
+    let finalTo = tx.to; // The contract address for token transfers
+    const status = "success";
 
-    if (tx.data !== "0x") {
-      const inputSig = tx.data.slice(0, 10);
-      if (inputSig === "0xa9059cbb") {
-        const recipient = "0x" + tx.data.slice(34, 74);
-        const valueHex = "0x" + tx.data.slice(74);
-        const decimals = 18;
-        amount = ethers.formatUnits(valueHex, decimals);
+    // 4. Decode data for token transfers (like USDT or USDC)
+    if (tx.data.startsWith("0xa9059cbb")) { // This is the function signature for 'transfer'
+      const iface = new ethers.Interface(ABI);
+      const decodedData = iface.parseTransaction({ data: tx.data });
+      finalTo = decodedData.args.to; // The actual recipient
+      amount = ethers.formatUnits(decodedData.args.amount, 18); // Assuming 18 decimals
 
-        if (tx.to.toLowerCase() === USDT_CONTRACT_ADDRESS.toLowerCase()) token = "USDT";
-        else if (tx.to.toLowerCase() === USDC_CONTRACT_ADDRESS.toLowerCase()) token = "USDC";
-      }
+      if (tx.to.toLowerCase() === USDT_CONTRACT_ADDRESS.toLowerCase()) token = "USDT";
+      else if (tx.to.toLowerCase() === USDC_CONTRACT_ADDRESS.toLowerCase()) token = "USDC";
     }
 
+    // 5. Create the new transaction document
     const txData = {
       txHash: txHash.toLowerCase(),
       from: tx.from,
-      to: tx.to,
+      to: finalTo,
       amount,
       token,
+      status,
       blockNumber: receipt.blockNumber,
+      gasUsed,
       gasFee,
       timestamp: new Date(block.timestamp * 1000).toLocaleString()
     };
 
-    await Transaction.create(txData);
-    return res.json(txData);
+    // 6. Save it to the database
+    const savedTx = await Transaction.create(txData);
+    return res.status(201).json(savedTx);
+
   } catch (err) {
     console.error("Verification error:", err.message);
     res.status(500).json({ error: "Internal server error" });
@@ -127,7 +136,7 @@ app.post("/api/verify-tx", async (req, res) => {
 });
 
 
-// Get transactions by address
+// Get transactions by address (no change)
 app.get('/api/transactions/:address', async (req, res) => {
   try {
     const addr = req.params.address.toLowerCase();

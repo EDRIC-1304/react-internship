@@ -1,9 +1,10 @@
-// Appln.jsx
-import React, { useState, useEffect } from 'react';
+/* eslint-env browser, node */
+
+import React, { useState, useEffect, useCallback } from 'react';
 import { ethers } from 'ethers';
 import axios from 'axios';
 import QRCode from 'react-qr-code';
-import './appln.css'; // Import the component-specific stylesheet
+import './appln.css';
 
 const USDT_CONTRACT_ADDRESS = '0x787A697324dbA4AB965C58CD33c13ff5eeA6295F';
 const USDC_CONTRACT_ADDRESS = '0x342e3aA1248AB77E319e3331C6fD3f1F2d4B36B1';
@@ -23,44 +24,45 @@ function Appln() {
   const [usdt, setUSDT] = useState('0');
   const [usdc, setUSDC] = useState('0');
   const [view, setView] = useState('send');
-  const [verifyHash, setVerifyHash] = useState('');
-  const [verifiedTx, setVerifiedTx] = useState(null);
   const [txHash, setTxHash] = useState('');
   const [popup, setPopup] = useState('');
   const [ledger, setLedger] = useState([]);
   const [disableSend, setDisableSend] = useState(false);
-  const [disableVerify, setDisableVerify] = useState(false);
   const [sending, setSending] = useState(false);
+  const [pendingTxs, setPendingTxs] = useState([]);
+  const [cancellingTxHash, setCancellingTxHash] = useState(null);
 
   const provider = new ethers.JsonRpcProvider("https://data-seed-prebsc-1-s1.binance.org:8545");
-
-  useEffect(() => {
-    if (wallet?.address) updateBalances(wallet.address);
-  }, [wallet]);
 
   const showPopup = (msg) => {
     setPopup(msg);
     setTimeout(() => {
       setPopup('');
-      setSending(false);
-      setDisableSend(false);
-    }, 3000);
+    }, 3500);
   };
 
-  const updateBalances = async (address) => {
-    const b = await provider.getBalance(address);
-    setBNB(ethers.formatEther(b));
+  const updateBalances = useCallback(async (address) => {
+    try {
+      const b = await provider.getBalance(address);
+      setBNB(ethers.formatEther(b));
+      const usdtC = new ethers.Contract(USDT_CONTRACT_ADDRESS, ABI, provider);
+      const usdtB = await usdtC.balanceOf(address);
+      setUSDT(ethers.formatUnits(usdtB, 18));
+      const usdcC = new ethers.Contract(USDC_CONTRACT_ADDRESS, ABI, provider);
+      const usdcB = await usdcC.balanceOf(address);
+      setUSDC(ethers.formatUnits(usdcB, 18));
+    } catch (error) {
+      console.error("Failed to update balances:", error);
+      showPopup("❌ Could not fetch balances.");
+    }
+  }, []); 
 
-    const usdtC = new ethers.Contract(USDT_CONTRACT_ADDRESS, ABI, provider);
-    const usdtB = await usdtC.balanceOf(address);
-    setUSDT(ethers.formatUnits(usdtB, 18));
+  useEffect(() => {
+    if (wallet?.address) {
+      updateBalances(wallet.address);
+    }
+  }, [wallet, updateBalances]);
 
-    const usdcC = new ethers.Contract(USDC_CONTRACT_ADDRESS, ABI, provider);
-    const usdcB = await usdcC.balanceOf(address);
-    setUSDC(ethers.formatUnits(usdcB, 18));
-  };
-  
-  // --- All your other functions (generateWallet, findWalletByUsername, etc.) remain the same ---
   const generateWallet = async () => {
     if (!username || !password) return showPopup("Set username and password");
     const newWallet = ethers.Wallet.createRandom();
@@ -109,60 +111,113 @@ function Appln() {
   };
 
   const sendToken = async () => {
-    if (!wallet || !revealPassword || !recipientAddress || !amount) return showPopup("❌ Fill all fields");
+    if (!wallet || !revealPassword || !recipientAddress || !amount) {
+      return showPopup("❌ Please fill all fields to send.");
+    }
     setDisableSend(true);
     setSending(true);
+    let tx;
     try {
       const dec = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
       const connected = dec.connect(provider);
-      let tx;
 
       if (selectedToken === "BNB") {
-        tx = await connected.sendTransaction({
-          to: recipientAddress,
-          value: ethers.parseEther(amount),
-          gasLimit: 21000n,
-          gasPrice: ethers.parseUnits("10", "gwei")
-        });
+        tx = await connected.sendTransaction({ to: recipientAddress, value: ethers.parseEther(amount) });
       } else {
-        const contract = new ethers.Contract(
-          selectedToken === "USDT" ? USDT_CONTRACT_ADDRESS : USDC_CONTRACT_ADDRESS,
-          ABI,
-          connected
-        );
+        const contractAddress = selectedToken === "USDT" ? USDT_CONTRACT_ADDRESS : USDC_CONTRACT_ADDRESS;
+        const contract = new ethers.Contract(contractAddress, ABI, connected);
         tx = await contract.transfer(recipientAddress, ethers.parseUnits(amount, 18));
       }
 
-      await tx.wait();
       setTxHash(tx.hash);
+      const pendingTxData = { hash: tx.hash, amount, token: selectedToken, to: recipientAddress };
+      setPendingTxs(prev => [...prev, pendingTxData]);
+      showPopup("⏳ Transaction Submitted! Awaiting confirmation...");
+
+      await tx.wait();
+
+      try {
+        await axios.post("http://localhost:5000/api/transactions/record", { txHash: tx.hash });
+        showPopup("✅ Transaction Confirmed & Recorded!");
+      } catch (error) {
+        console.error("Ledger recording failed:", error);
+        showPopup("✅ Tx Confirmed, but failed to record in ledger.");
+      }
+
       updateBalances(await connected.getAddress());
-      showPopup("✅ Transaction Sent");
+
     } catch (err) {
       console.error(err);
-      showPopup("❌ Failed to send");
+      showPopup("❌ Transaction Failed or was Rejected.");
+    } finally {
+      if (tx) {
+        setPendingTxs(prev => prev.filter(p => p.hash !== tx.hash));
+      }
+      setSending(false);
+      setDisableSend(false);
     }
   };
 
-  const verifyTransaction = async () => {
-    if (!verifyHash) return showPopup("Enter hash");
-    setDisableVerify(true);
-    try {
-      const res = await axios.post("http://localhost:5000/api/verify-tx", {
-        txHash: verifyHash
-      });
-      if (res.data && res.data.txHash) {
-        setVerifiedTx(res.data);
-        showPopup("✅ Verified");
-        fetchLedger();
-      } else {
-        setVerifiedTx(null);
-        showPopup("❌ Invalid Hash");
-      }
-    } catch {
-      setVerifiedTx(null);
-      showPopup("❌ Invalid Hash");
+  const handleCancelTransaction = async (stuckTxHash) => {
+    if (!wallet || !revealPassword) {
+      return showPopup("❌ Enter password to sign the cancellation transaction.");
     }
-    setTimeout(() => setDisableVerify(false), 3000);
+
+    setCancellingTxHash(stuckTxHash);
+    showPopup("🔍 Checking transaction status...");
+
+    try {
+      // --- NEW: First, check if the transaction has already been mined ---
+      const receipt = await provider.getTransactionReceipt(stuckTxHash);
+      if (receipt && receipt.blockNumber) {
+        showPopup("✅ Transaction has already been confirmed!");
+        // Remove it from the pending list
+        setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
+        updateBalances(wallet.address); // Update balances just in case
+        return; // Stop the cancellation process
+      }
+
+      const decryptedWallet = await ethers.Wallet.fromEncryptedJson(wallet.encryptedJson, revealPassword);
+      const connectedWallet = decryptedWallet.connect(provider);
+
+      const stuckTx = await provider.getTransaction(stuckTxHash);
+      if (!stuckTx) {
+        // This can still happen if the tx was dropped from the mempool
+        throw new Error("Transaction not found. It may have been confirmed or dropped.");
+      }
+
+      // Increase gas price by 20% to be safe
+      const newGasPrice = stuckTx.gasPrice * BigInt(120) / BigInt(100);
+
+      showPopup("Gas price increased. Submitting cancellation...");
+      
+      const cancelTx = await connectedWallet.sendTransaction({
+        to: wallet.address, // Sending to yourself
+        value: ethers.parseEther("0"),
+        nonce: stuckTx.nonce,
+        gasPrice: newGasPrice,
+      });
+
+      showPopup("⏳ Submitting cancellation... Awaiting confirmation.");
+      await cancelTx.wait();
+
+      setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
+      showPopup(`✅ Original transaction successfully cancelled with new Tx: ${cancelTx.hash}`);
+
+    } catch (err) {
+      console.error("Cancellation failed:", err);
+      // More specific error message for the user
+      if (err.message.includes("not found")) {
+        showPopup("❌ Cancellation failed. The transaction was likely already processed.");
+        // If it was processed, remove it from the pending list
+        setPendingTxs(prev => prev.filter(p => p.hash !== stuckTxHash));
+        updateBalances(wallet.address);
+      } else {
+        showPopup(`❌ Cancellation failed: ${err.message}`);
+      }
+    } finally {
+      setCancellingTxHash(null);
+    }
   };
 
   const fetchLedger = async () => {
@@ -175,12 +230,10 @@ function Appln() {
     }
   };
 
-
   return (
     <div className="appln-container">
       <h1 className="appln-header">React Wallet</h1>
 
-      {/* Wallet Creation/Finding Section */}
       <div className="appln-card">
         <h2 className="appln-card-header">Manage Your Wallet</h2>
         <div className="input-group">
@@ -194,7 +247,6 @@ function Appln() {
         </div>
       </div>
 
-      {/* Wallet Info */}
       {wallet && (
         <div className="appln-card">
           <div className="wallet-info">
@@ -203,7 +255,7 @@ function Appln() {
             <p><strong>Mnemonic:</strong> {wallet.mnemonic?.phrase}</p>
           </div>
           <div className="input-group">
-            <input type="password" placeholder="Enter Password to Reveal Private Key" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} className="appln-input" />
+            <input type="password" placeholder="Enter Password for Actions" value={revealPassword} onChange={(e) => setRevealPassword(e.target.value)} className="appln-input" />
             <button className="appln-button" onClick={revealPrivateKey}>Reveal PK</button>
           </div>
           {privateKey && <p className="private-key"><strong>Private Key:</strong> {privateKey}</p>}
@@ -215,7 +267,6 @@ function Appln() {
         </div>
       )}
 
-      {/* Send View */}
       {view === 'send' && wallet && (
         <div className="appln-card">
           <h3 className="appln-card-header">Send Tokens</h3>
@@ -229,35 +280,43 @@ function Appln() {
           <button onClick={sendToken} className="appln-button" disabled={disableSend || sending}>
             {sending ? "Sending..." : "Send Transaction"}
           </button>
-
           {txHash && (
             <div className="tx-details">
-              <p><strong>Hash:</strong> {txHash}</p>
+              <p><strong>Last Tx Hash:</strong> {txHash}</p>
               <button onClick={() => { navigator.clipboard.writeText(txHash); showPopup("📋 Hash Copied") }} className="appln-button-small">Copy Hash</button>
               <a href={`https://testnet.bscscan.com/tx/${txHash}`} target="_blank" rel="noopener noreferrer" className="appln-link">View on BscScan</a>
-            </div>
-          )}
-          
-          <hr className="separator" />
-
-          <h4 className="appln-card-header">Verify Transaction</h4>
-          <input placeholder="Enter Tx Hash to Verify" value={verifyHash} onChange={(e) => setVerifyHash(e.target.value)} className="appln-input" />
-          <button className="appln-button" onClick={verifyTransaction} disabled={disableVerify}>Verify</button>
-
-          {verifiedTx && (
-            <div className="verified-tx-card">
-              <p><strong>Status:</strong> ✅ Verified</p>
-              <p><strong>From:</strong> {verifiedTx.from}</p>
-              <p><strong>To:</strong> {verifiedTx.to}</p>
-              <p><strong>Amount:</strong> {verifiedTx.amount} {verifiedTx.token}</p>
-              <p><strong>Block ID:</strong> {verifiedTx.blockNumber}</p>
-              <p><strong>Gas Fee:</strong> {verifiedTx.gasFee} BNB</p>
             </div>
           )}
         </div>
       )}
 
-      {/* Receive View */}
+      {pendingTxs.length > 0 && (
+        <div className="appln-card">
+          <h3 className="appln-card-header">Pending Transactions</h3>
+          <div className="ledger-list">
+            {pendingTxs.map(tx => (
+              <div key={tx.hash} className="ledger-item pending-item">
+                <p><strong>Sending:</strong> {tx.amount} {tx.token} to {tx.to.substring(0, 10)}...</p>
+                <div className="pending-details">
+                  <div className="spinner"></div>
+                  <span>Pending...</span>
+                  <a href={`https://testnet.bscscan.com/tx/${tx.hash}`} target="_blank" rel="noopener noreferrer" className="appln-link">
+                    View on BscScan
+                  </a>
+                  <button
+                    className="appln-button-cancel"
+                    onClick={() => handleCancelTransaction(tx.hash)}
+                    disabled={cancellingTxHash === tx.hash}
+                  >
+                    {cancellingTxHash === tx.hash ? 'Cancelling...' : 'Cancel'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {view === 'receive' && wallet && (
         <div className="appln-card receive-card">
           <h3 className="appln-card-header">Receive Funds</h3>
@@ -272,7 +331,6 @@ function Appln() {
         </div>
       )}
 
-      {/* Transaction Ledger */}
       {view === 'ledger' && wallet && (
         <div className="appln-card">
           <h3 className="appln-card-header">Transaction Ledger</h3>
@@ -291,7 +349,6 @@ function Appln() {
         </div>
       )}
 
-      {/* Popup */}
       {popup && (
         <div className="appln-popup">{popup}</div>
       )}

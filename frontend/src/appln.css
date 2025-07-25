@@ -159,3 +159,55 @@
   box-shadow: 0 4px 15px rgba(0, 255, 204, 0.2);
   font-size: 16px;
 }
+
+/* In appln.css */
+
+.pending-item {
+  background-color: #fef3c7; /* A light yellow */
+  border-left: 4px solid #f59e0b; /* Amber color */
+  opacity: 0.9;
+}
+
+.pending-details {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.spinner {
+  border: 3px solid rgba(0, 0, 0, 0.1);
+  border-left-color: #09f;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* --- Styles for Cancel Feature --- */
+
+.appln-button-cancel {
+  background-color: #f56565; /* A red color for danger/cancel actions */
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out;
+  margin-left: auto; /* This pushes the button to the far right of the flex container */
+}
+
+.appln-button-cancel:hover {
+  background-color: #e53e3e; /* A darker red on hover */
+}
+
+.appln-button-cancel:disabled {
+  background-color: #a0aec0; /* Use the same disabled color as other buttons */
+  cursor: not-allowed;
+  opacity: 0.7;
+}
