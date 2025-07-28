@@ -66,7 +66,7 @@ function Appln() {
     const newWallet = ethers.Wallet.createRandom();
     const encryptedJson = await newWallet.encrypt(password);
     try {
-      await axios.post("http://localhost:5000/api/wallets", {
+      await axios.post("/api/wallets", {
         userId: 'user001',
         username: walletName,
         address: newWallet.address,
@@ -83,7 +83,7 @@ function Appln() {
   const findWallet = async () => {
     if (!walletName) return showPopup("Enter wallet name to fetch.");
     try {
-      const res = await axios.get(`http://localhost:5000/api/wallets/${walletName}`);
+      const res = await axios.get(`/api/wallets/${walletName}`);
       const found = res.data;
       setWallet({
         name: found.username,
@@ -138,7 +138,7 @@ function Appln() {
       showPopup("⏳ Transaction Submitted! Awaiting confirmation...");
       await tx.wait();
       try {
-        await axios.post("http://localhost:5000/api/transactions/record", { txHash: tx.hash });
+        await axios.post("/api/transactions/record", { txHash: tx.hash });
         showPopup("✅ Transaction Confirmed & Recorded!");
       } catch (error) {
         console.error("Ledger recording failed:", error);
@@ -200,7 +200,7 @@ function Appln() {
   const fetchLedger = async () => {
     if (!wallet?.address) return;
     try {
-      const res = await axios.get(`http://localhost:5000/api/transactions/${wallet.address}`);
+      const res = await axios.get(`/api/transactions/${wallet.address}`);
       setLedger(res.data);
     } catch {
       setLedger([]);

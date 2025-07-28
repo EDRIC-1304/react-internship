@@ -1,4 +1,5 @@
 // server.js
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -18,8 +19,8 @@ app.use(cors());
 app.use(express.json());
 
 // Connect MongoDB
-mongoose.connect('mongodb+srv://edric:wined@cluster0.49d4fas.mongodb.net/metamask')
-  .then(() => console.log("MongoDB Connected"))
+mongoose.connect(process.env.MONGODB_URI)
+.then(() => console.log("MongoDB Connected"))
   .catch(err => console.log("MongoDB Error:", err));
 
 // Wallet Schema (no change)
